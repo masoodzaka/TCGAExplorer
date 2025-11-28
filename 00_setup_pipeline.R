@@ -1,12 +1,33 @@
 # ============================================================================
 # TCGA Transcriptomics Pipeline - Setup & Environment Configuration
 # ============================================================================
-# This script sets up the project environment, installs required packages,
-# and creates utility functions for the entire pipeline
+# Expert-level bioinformatics setup with robust error handling and validation
+# Installs required packages and creates utility functions for the pipeline
 # ============================================================================
 
-# Set working directory
-setwd("~/workspace/rstudio/tcga_explorer")
+# Set working directory dynamically
+set_project_dir <- function() {
+  # Try to get the script directory
+  if (interactive()) {
+    script_dir <- tryCatch({
+      dirname(rstudioapi::getActiveDocumentContext()$path)
+    }, error = function(e) {
+      getwd()
+    })
+  } else {
+    # In batch mode, use current directory
+    script_dir <- getwd()
+  }
+
+  # Verify we're in the right directory
+  if (!file.exists("master_pipeline.R")) {
+    stop("Error: Not in TCGAExplorer root directory. Please run from project root.")
+  }
+
+  return(script_dir)
+}
+
+project_dir <- set_project_dir()
 
 # Create project directory structure
 create_project_structure <- function() {
@@ -56,7 +77,7 @@ install_and_load_packages <- function() {
     "igraph"
   )
   
-  # Bioconductor packages
+  # Bioconductor packages (bioinformatics-specific)
   bioc_packages <- c(
     "UCSCXenaTools",
     "DESeq2",
@@ -66,7 +87,8 @@ install_and_load_packages <- function() {
     "edgeR",
     "immunedeconv",
     "SingleCellExperiment",
-    "SummarizedExperiment"
+    "SummarizedExperiment",
+    "survcomp"       # For concordance index calculation
   )
   
   # Install CRAN packages
@@ -232,6 +254,31 @@ load_data <- function(filename) {
   })
 }
 
+# Function for quality control of count data
+qc_count_data <- function(counts, name) {
+  library(logger)
+
+  # Check for numeric matrix
+  if (!is.numeric(counts) && !is(counts, "dgCMatrix")) {
+    log_error("Count data {name} is not numeric")
+    return(FALSE)
+  }
+
+  # Check for NaN/Inf
+  if (any(is.nan(counts)) || any(is.infinite(counts))) {
+    log_error("Count data {name} contains NaN or Inf values")
+    return(FALSE)
+  }
+
+  # Check for negative values
+  if (any(counts < 0)) {
+    log_warn("Count data {name} contains negative values - may indicate data issues")
+  }
+
+  log_info("✓ QC passed for {name}")
+  return(TRUE)
+}
+
 # ============================================================================
 # Main Execution
 # ============================================================================
@@ -239,6 +286,7 @@ load_data <- function(filename) {
 main <- function() {
   cat("\n╔════════════════════════════════════════════════════════════════╗\n")
   cat("║  TCGA Transcriptomics Pipeline - Environment Setup             ║\n")
+  cat("║  Expert Bioinformatics Analysis Framework                      ║\n")
   cat("╚════════════════════════════════════════════════════════════════╝\n\n")
   
   # Create project structure
